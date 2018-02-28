@@ -153,7 +153,8 @@ def init_experiment(config):
     text += 'CWD: {}\n'.format(os.getcwd())
     text += 'PID: {}\n'.format(os.getpid())
     text += 'Log Dir: {}\n'.format(log_dir)
-    text += 'Commit Hash: {}\n'.format(commit(config.get('title', '<No Title'), start_time))
+    if config.get('commit',False):
+        text += 'Commit Hash: {}\n'.format(commit(config.get('title', '<No Title'), start_time))
     text += 'Random Seed: {}\n'.format(config.get('random_seed', '<Unknown...BAD PRACTICE!>'))
     text += '</pre>\n<pre>'
 
