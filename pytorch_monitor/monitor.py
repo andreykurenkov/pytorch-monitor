@@ -12,12 +12,13 @@ import torchvision.transforms as transforms
 
 from tensorboardX import SummaryWriter
 
-def grad_hook(module, name, writer, bins):
+def grad_hook(module, name, writer, bins, freq):
     def hook(grad):
-        writer.add_histogram('{}/grad'.format(name.replace('.','/')),
-                             grad.data,
-                             module.global_step-1,
-                             bins=bins)
+        if (module.global_step-1)%freq==0:
+            writer.add_histogram('{}/grad'.format(name.replace('.','/')),
+                                 grad.data,
+                                 module.global_step-1,
+                                 bins=bins)
     return hook
 
 def remove_old_var_hooks(module, input):
@@ -33,7 +34,7 @@ def monitor_module(module, summary_writer,
                    track_grad=True,
                    track_update=True,
                    track_update_ratio=False, # this is usually unnecessary
-                   bins=51):
+                   bins=51,freq=25):
     """ Allows for remote monitoring of a module's params and buffers.
     The following may be monitored:
       1. Forward Values - Histograms of the values for parameter and buffer tensors
@@ -44,7 +45,6 @@ def monitor_module(module, summary_writer,
            and value tensors from the last iteration to the actual values.
            I.e., what is the relative size of the update.
            Generally we like to see values of about .001.
-           See [cite Andrej Karpathy's babysitting dnn's blog post]
     """
     def monitor_forward_and_vars(module, input, output):
         # iterate over the state after the forward pass
@@ -52,10 +52,12 @@ def monitor_module(module, summary_writer,
         # (allowing us to not need to retain grads)
         # as well as recording the forward prop activations
         # and the updates from the last iteration if possible
+        if (module.global_step-1)%freq:
+            return
         for name, tensor in module.state_dict().items():
             if isinstance(tensor, ag.Variable): # it's an intermediate computation
                 if track_grad:
-                    hook = grad_hook(module, name, summary_writer, bins)
+                    hook = grad_hook(module, name, summary_writer, bins, freq)
                     module.var_hooks[name] = tensor.register_hook(hook)
                 if track_data:
                     summary_writer.add_histogram('{}/data'.format(name.replace('.','/')),
@@ -100,7 +102,7 @@ def monitor_module(module, summary_writer,
         param_names = [ name for name, _ in module.named_parameters()]
         for name, param in zip(param_names, module.parameters()):
             if param.requires_grad:
-                hook = grad_hook(module, name, summary_writer, bins)
+                hook = grad_hook(module, name, summary_writer, bins, freq)
                 module.param_hooks[name] = param.register_hook(hook)
             
     # monitor forward grads
